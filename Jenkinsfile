@@ -2,49 +2,52 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE_NAME = "spring-auth-app"
-        COMPOSE_PROJECT_NAME = "auth-app-deployment"
+        REMOTE_USER = "ubuntu"
+        REMOTE_HOST = "your.ec2.ip.address"
+        REMOTE_DIR = "/home/ubuntu/auth-app"
+        GIT_REPO = "https://github.com/your-username/your-repo.git"
     }
 
     stages {
-        stage('Checkout') {
+        stage('Deploy to EC2') {
             steps {
-                echo "Cloning the repository..."
-                checkout scm
-            }
-        }
+                withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
+                    sh '''
+                    chmod 400 $EC2_PEM
 
-        stage('Build with Maven') {
-            steps {
-                dir('Authentication') {
-                    echo "Building the project with Maven..."
-                    sh 'mvn clean package -DskipTests'
+                    ssh -o StrictHostKeyChecking=no -i $EC2_PEM $REMOTE_USER@$REMOTE_HOST '
+                        echo "🔧 Preparing directory..."
+                        mkdir -p $REMOTE_DIR
+                        cd $REMOTE_DIR
+
+                        echo "📦 Cloning or pulling the repo..."
+                        if [ -d ".git" ]; then
+                            git pull
+                        else
+                            git clone $GIT_REPO .
+                        fi
+
+                        echo "🛠️ Building with Maven..."
+                        cd Authentication
+                        mvn clean package -DskipTests
+                        cd ..
+
+                        echo "🐳 Docker compose up..."
+                        docker-compose down
+                        docker-compose up --build -d
+                    '
+                    '''
                 }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                echo "Building Docker image from Authentication..."
-                sh 'docker build -t $DOCKER_IMAGE_NAME ./Authentication'
-            }
-        }
-
-        stage('Compose Up') {
-            steps {
-                echo "Deploying using docker-compose..."
-                sh 'docker-compose down'
-                sh 'docker-compose up --build -d'
             }
         }
     }
 
     post {
         success {
-            echo '✅ Build and deployment successful!'
+            echo '✅ Remote deployment successful!'
         }
         failure {
-            echo '❌ Build or deployment failed!'
+            echo '❌ Remote deployment failed!'
         }
     }
 }
