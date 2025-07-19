@@ -38,16 +38,16 @@ pipeline {
                         echo 🔐 Copying PEM file to Jenkins workspace...
                         copy "%EC2_PEM%" "${pemPath}"
 
-                        echo ✅ Setting read-only permissions on PEM file...
-                        icacls "${pemPath}" /inheritance:r /grant:r "%USERNAME%:R"
+                        echo ✅ Setting secure permissions on PEM file...
+                        wsl chmod 400 \$(wslpath "${pemPath}")
 
-                        echo 📁 Creating remote directory...
-                        wsl ssh -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% "mkdir -p %REMOTE_DIR%"
+                        echo 📁 Creating remote directory on EC2...
+                        wsl ssh -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% "mkdir -p %REMOTE_DIR%"
 
-                        echo 🚚 Copying JAR and Docker files...
-                        wsl scp -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no Authentication/target/*.jar %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/app.jar
-                        wsl scp -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no docker-compose.yml %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
-                        wsl scp -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no Authentication/Dockerfile %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
+                        echo 🚚 Copying JAR and Docker files to EC2...
+                        wsl scp -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no Authentication/target/*.jar %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/app.jar
+                        wsl scp -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no docker-compose.yml %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
+                        wsl scp -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no Authentication/Dockerfile %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
                         """
                     }
                 }
@@ -61,8 +61,8 @@ pipeline {
                     script {
                         def pemPath = "${env.WORKSPACE}\\jenkins_key.pem".replace('/', '\\')
                         bat """
-                        echo 🚀 Starting docker-compose...
-                        wsl ssh -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% "cd %REMOTE_DIR% && docker-compose down && docker-compose up --build -d"
+                        echo 🚀 Running docker-compose remotely...
+                        wsl ssh -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% "cd %REMOTE_DIR% && docker-compose down && docker-compose up --build -d"
                         """
                     }
                 }
