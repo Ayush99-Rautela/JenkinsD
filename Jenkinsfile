@@ -5,37 +5,55 @@ pipeline {
         REMOTE_USER = "ubuntu"
         REMOTE_HOST = "13.48.48.60"
         REMOTE_DIR = "/home/ubuntu/auth-app"
-        GIT_REPO = "https://github.com/Ayush99-Rautela/JenkinsD.git"
+        DOCKER_IMAGE_NAME = "spring-auth-app"
     }
 
     stages {
-        stage('Deploy to EC2') {
+        stage('Checkout') {
             steps {
+                echo "📥 Cloning the repository..."
+                checkout scm
+            }
+        }
+
+        stage('Build JAR') {
+            steps {
+                dir('Authentication') {
+                    echo "🛠️ Building Spring Boot application..."
+                    sh 'mvn clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('SCP Files to EC2') {
+            steps {
+                echo "📤 Copying files to EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
                     sh '''
                     chmod 400 $EC2_PEM
 
-                    ssh -o StrictHostKeyChecking=no -i $EC2_PEM $REMOTE_USER@$REMOTE_HOST '
-                        echo "🔧 Preparing directory..."
-                        mkdir -p $REMOTE_DIR
-                        cd $REMOTE_DIR
+                    echo "📁 Creating remote directory..."
+                    ssh -o StrictHostKeyChecking=no -i $EC2_PEM $REMOTE_USER@$REMOTE_HOST "mkdir -p $REMOTE_DIR"
 
-                        echo "📦 Cloning or pulling the repo..."
-                        if [ -d ".git" ]; then
-                            git pull
-                        else
-                            git clone $GIT_REPO .
-                        fi
+                    echo "🚚 SCP .jar and docker files to EC2..."
+                    scp -o StrictHostKeyChecking=no -i $EC2_PEM Authentication/target/*.jar $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/app.jar
+                    scp -o StrictHostKeyChecking=no -i $EC2_PEM docker-compose.yml $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/
+                    scp -o StrictHostKeyChecking=no -i $EC2_PEM Authentication/Dockerfile $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/
+                    '''
+                }
+            }
+        }
 
-                        echo "🛠️ Building with Maven..."
-                        cd Authentication
-                        mvn clean package -DskipTests
-                        cd ..
-
-                        echo "🐳 Docker compose up..."
-                        docker-compose down
+        stage('Run Docker Compose on EC2') {
+            steps {
+                echo "🐳 Running docker-compose on EC2..."
+                withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no -i $EC2_PEM $REMOTE_USER@$REMOTE_HOST "
+                        cd $REMOTE_DIR &&
+                        docker-compose down &&
                         docker-compose up --build -d
-                    '
+                    "
                     '''
                 }
             }
