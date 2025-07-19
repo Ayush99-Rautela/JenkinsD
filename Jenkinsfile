@@ -20,7 +20,7 @@ pipeline {
             steps {
                 dir('Authentication') {
                     echo "🛠️ Building Spring Boot application..."
-                    sh 'mvn clean package -DskipTests'
+                    bat 'mvn clean package -DskipTests'
                 }
             }
         }
@@ -29,37 +29,29 @@ pipeline {
             steps {
                 echo "📤 Copying files to EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
-                    sh '''
-                        chmod 400 "$EC2_PEM"
+                    bat '''
+                    echo Setting permissions for SSH key...
+                    icacls "%EC2_PEM%" /inheritance:r /grant:r "%USERNAME%:R"
 
-                        echo "📁 Creating remote directory..."
-                        ssh -o StrictHostKeyChecking=no -i "$EC2_PEM" "$REMOTE_USER@$REMOTE_HOST" "mkdir -p '$REMOTE_DIR'"
+                    echo Creating remote directory...
+                    bash -c "ssh -o StrictHostKeyChecking=no -i %EC2_PEM% %REMOTE_USER%@%REMOTE_HOST% 'mkdir -p %REMOTE_DIR%'"
 
-                        echo "🚚 Transferring JAR file..."
-                        scp -o StrictHostKeyChecking=no -i "$EC2_PEM" Authentication/target/*.jar "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/app.jar"
-
-                        echo "📦 Transferring Dockerfile..."
-                        scp -o StrictHostKeyChecking=no -i "$EC2_PEM" Authentication/Dockerfile "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/Dockerfile"
-
-                        echo "⚙️ Transferring docker-compose.yml..."
-                        scp -o StrictHostKeyChecking=no -i "$EC2_PEM" docker-compose.yml "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/docker-compose.yml"
+                    echo Copying JAR and Docker files...
+                    bash -c "scp -o StrictHostKeyChecking=no -i %EC2_PEM% Authentication/target/*.jar %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/app.jar"
+                    bash -c "scp -o StrictHostKeyChecking=no -i %EC2_PEM% docker-compose.yml %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/"
+                    bash -c "scp -o StrictHostKeyChecking=no -i %EC2_PEM% Authentication/Dockerfile %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/"
                     '''
                 }
             }
         }
 
-        stage('Deploy via Docker Compose on EC2') {
+        stage('Run Docker Compose on EC2') {
             steps {
-                echo "🐳 Running Docker Compose on EC2..."
+                echo "🐳 Running docker-compose on EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i "$EC2_PEM" "$REMOTE_USER@$REMOTE_HOST" '
-                            cd "$REMOTE_DIR"
-                            echo "🧼 Stopping old containers..."
-                            docker-compose down
-                            echo "🚀 Starting new containers..."
-                            docker-compose up --build -d
-                        '
+                    bat '''
+                    echo Connecting to EC2 and running Docker Compose...
+                    bash -c "ssh -o StrictHostKeyChecking=no -i %EC2_PEM% %REMOTE_USER%@%REMOTE_HOST% \\"cd %REMOTE_DIR% && docker-compose down && docker-compose up --build -d\\""
                     '''
                 }
             }
