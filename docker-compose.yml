@@ -1,0 +1,51 @@
+ 
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8
+    container_name: mysql-auth-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: AyushR@1999
+      MYSQL_DATABASE: sample_auth
+    ports:
+      - "3306:3306"
+    networks:
+      - backend
+
+  redis:
+    image: redis:7
+    container_name: redis-auth-cache
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - backend
+
+  spring-auth-app:
+    build:
+      context: ./Authentication
+      dockerfile: Dockerfile
+    container_name: spring-auth-app
+    depends_on:
+      - mysql
+      - redis
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-auth-db:3306/sample_auth
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: AyushR@1999
+      SPRING_DATA_REDIS_HOST: redis-auth-cache
+      SPRING_DATA_REDIS_PORT: 6379
+      JWT_SECRET: akmcakkasnnaxknkawjoscmjkwjoqeasknkakdmax
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQL8Dialect
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
