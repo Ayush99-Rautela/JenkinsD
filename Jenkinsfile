@@ -30,30 +30,36 @@ pipeline {
                 echo "📤 Copying files to EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
                     sh '''
-                    chmod 400 $EC2_PEM
+                        chmod 400 "$EC2_PEM"
 
-                    echo "📁 Creating remote directory..."
-                    ssh -o StrictHostKeyChecking=no -i $EC2_PEM $REMOTE_USER@$REMOTE_HOST "mkdir -p $REMOTE_DIR"
+                        echo "📁 Creating remote directory..."
+                        ssh -o StrictHostKeyChecking=no -i "$EC2_PEM" "$REMOTE_USER@$REMOTE_HOST" "mkdir -p '$REMOTE_DIR'"
 
-                    echo "🚚 SCP .jar and docker files to EC2..."
-                    scp -o StrictHostKeyChecking=no -i $EC2_PEM Authentication/target/*.jar $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/app.jar
-                    scp -o StrictHostKeyChecking=no -i $EC2_PEM docker-compose.yml $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/
-                    scp -o StrictHostKeyChecking=no -i $EC2_PEM Authentication/Dockerfile $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/
+                        echo "🚚 Transferring JAR file..."
+                        scp -o StrictHostKeyChecking=no -i "$EC2_PEM" Authentication/target/*.jar "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/app.jar"
+
+                        echo "📦 Transferring Dockerfile..."
+                        scp -o StrictHostKeyChecking=no -i "$EC2_PEM" Authentication/Dockerfile "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/Dockerfile"
+
+                        echo "⚙️ Transferring docker-compose.yml..."
+                        scp -o StrictHostKeyChecking=no -i "$EC2_PEM" docker-compose.yml "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/docker-compose.yml"
                     '''
                 }
             }
         }
 
-        stage('Run Docker Compose on EC2') {
+        stage('Deploy via Docker Compose on EC2') {
             steps {
-                echo "🐳 Running docker-compose on EC2..."
+                echo "🐳 Running Docker Compose on EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
                     sh '''
-                    ssh -o StrictHostKeyChecking=no -i $EC2_PEM $REMOTE_USER@$REMOTE_HOST "
-                        cd $REMOTE_DIR &&
-                        docker-compose down &&
-                        docker-compose up --build -d
-                    "
+                        ssh -o StrictHostKeyChecking=no -i "$EC2_PEM" "$REMOTE_USER@$REMOTE_HOST" '
+                            cd "$REMOTE_DIR"
+                            echo "🧼 Stopping old containers..."
+                            docker-compose down
+                            echo "🚀 Starting new containers..."
+                            docker-compose up --build -d
+                        '
                     '''
                 }
             }
