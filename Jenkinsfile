@@ -34,21 +34,22 @@ pipeline {
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
                     script {
                         def pemPath = "${env.WORKSPACE}\\jenkins_key.pem".replace('/', '\\')
-                        bat """
-                        echo 🔐 Copying PEM file to Jenkins workspace...
-                        copy "%EC2_PEM%" "${pemPath}"
+                      bat """
+echo 🔐 Copying PEM file to Jenkins workspace...
+copy "%EC2_PEM%" "${pemPath}"
 
-                        echo ✅ Setting secure permissions on PEM file...
-                        wsl chmod 400 \$(wslpath "${pemPath}")
+echo ✅ Setting permissions on PEM file...
+wsl chmod 600 "\$(wslpath '${pemPath}')"
 
-                        echo 📁 Creating remote directory on EC2...
-                        wsl ssh -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% "mkdir -p %REMOTE_DIR%"
+echo 📁 Creating remote directory...
+wsl ssh -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% "mkdir -p %REMOTE_DIR%"
 
-                        echo 🚚 Copying JAR and Docker files to EC2...
-                        wsl scp -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no Authentication/target/*.jar %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/app.jar
-                        wsl scp -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no docker-compose.yml %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
-                        wsl scp -i \$(wslpath "${pemPath}") -o StrictHostKeyChecking=no Authentication/Dockerfile %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
-                        """
+echo 🚚 Copying JAR and Docker files...
+wsl scp -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no Authentication/target/*.jar %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/app.jar
+wsl scp -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no docker-compose.yml %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
+wsl scp -i "\$(wslpath '${pemPath}')" -o StrictHostKeyChecking=no Authentication/Dockerfile %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
+"""
+
                     }
                 }
             }
