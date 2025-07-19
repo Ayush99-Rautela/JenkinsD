@@ -3,9 +3,9 @@ pipeline {
 
     environment {
         REMOTE_USER = "ubuntu"
-        REMOTE_HOST = "your.ec2.ip.address"
+        REMOTE_HOST = "13.48.48.60"
         REMOTE_DIR = "/home/ubuntu/auth-app"
-        GIT_REPO = "https://github.com/your-username/your-repo.git"
+        GIT_REPO = "https://github.com/Ayush99-Rautela/JenkinsD.git"
     }
 
     stages {
