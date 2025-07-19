@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        maven 'Maven_3.9.11' // Make sure this matches your Jenkins "Global Tool Configuration"
+    }
+
     environment {
         REMOTE_USER = "ubuntu"
         REMOTE_HOST = "13.48.48.60"
@@ -30,16 +34,16 @@ pipeline {
                 echo "📤 Copying files to EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
                     bat '''
-                    echo Setting permissions for SSH key...
+                    echo 🔐 Setting permissions for PEM file...
                     icacls "%EC2_PEM%" /inheritance:r /grant:r "%USERNAME%:R"
 
-                    echo Creating remote directory...
-                    bash -c "ssh -o StrictHostKeyChecking=no -i %EC2_PEM% %REMOTE_USER%@%REMOTE_HOST% 'mkdir -p %REMOTE_DIR%'"
+                    echo 📁 Creating remote directory...
+                    bash -c "ssh -o StrictHostKeyChecking=no -i '%EC2_PEM%' %REMOTE_USER%@%REMOTE_HOST% 'mkdir -p %REMOTE_DIR%'"
 
-                    echo Copying JAR and Docker files...
-                    bash -c "scp -o StrictHostKeyChecking=no -i %EC2_PEM% Authentication/target/*.jar %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/app.jar"
-                    bash -c "scp -o StrictHostKeyChecking=no -i %EC2_PEM% docker-compose.yml %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/"
-                    bash -c "scp -o StrictHostKeyChecking=no -i %EC2_PEM% Authentication/Dockerfile %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/"
+                    echo 🚚 Copying JAR and Docker files...
+                    bash -c "scp -o StrictHostKeyChecking=no -i '%EC2_PEM%' Authentication/target/*.jar %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/app.jar"
+                    bash -c "scp -o StrictHostKeyChecking=no -i '%EC2_PEM%' docker-compose.yml %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/"
+                    bash -c "scp -o StrictHostKeyChecking=no -i '%EC2_PEM%' Authentication/Dockerfile %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/"
                     '''
                 }
             }
@@ -50,8 +54,8 @@ pipeline {
                 echo "🐳 Running docker-compose on EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
                     bat '''
-                    echo Connecting to EC2 and running Docker Compose...
-                    bash -c "ssh -o StrictHostKeyChecking=no -i %EC2_PEM% %REMOTE_USER%@%REMOTE_HOST% \\"cd %REMOTE_DIR% && docker-compose down && docker-compose up --build -d\\""
+                    echo 🚀 Running docker-compose remotely...
+                    bash -c "ssh -o StrictHostKeyChecking=no -i '%EC2_PEM%' %REMOTE_USER%@%REMOTE_HOST% \\"cd %REMOTE_DIR% && docker-compose down && docker-compose up --build -d\\""
                     '''
                 }
             }
