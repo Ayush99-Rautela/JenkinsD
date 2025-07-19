@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3.9.11' // Ensure this name matches your Jenkins global config
+        maven 'Maven_3.9.11'
     }
 
     environment {
@@ -24,7 +24,7 @@ pipeline {
             steps {
                 dir('Authentication') {
                     echo "🛠️ Building Spring Boot application..."
-                    bat "mvn clean package -DskipTests"
+                    bat 'mvn clean package -DskipTests'
                 }
             }
         }
@@ -33,18 +33,22 @@ pipeline {
             steps {
                 echo "📤 Copying files to EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
-                    bat """
-                    echo 🔐 Setting permissions for PEM file...
-                    icacls "%EC2_PEM%" /inheritance:r /grant:r "%USERNAME%:R"
+                    bat '''
+                    echo 🔐 Copying PEM file to temporary location...
+                    set PEM_PATH=C:\\Users\\%USERNAME%\\jenkins_key.pem
+                    copy "%EC2_PEM%" "%PEM_PATH%"
 
-                    echo 📁 Creating remote directory...
-                    bash -c "ssh -o StrictHostKeyChecking=no -i '%EC2_PEM%' ${REMOTE_USER}@${REMOTE_HOST} 'mkdir -p ${REMOTE_DIR}'"
+                    echo ✅ Setting read-only permissions on PEM file...
+                    icacls "%PEM_PATH%" /inheritance:r /grant:r "%USERNAME%:R"
+
+                    echo 📁 Creating remote directory on EC2...
+                    wsl ssh -i "$(wslpath '%PEM_PATH%')" -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% "mkdir -p %REMOTE_DIR%"
 
                     echo 🚚 Copying JAR and Docker files...
-                    bash -c "scp -o StrictHostKeyChecking=no -i '%EC2_PEM%' Authentication/target/Authentication-0.0.1-SNAPSHOT.jar ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/app.jar"
-                    bash -c "scp -o StrictHostKeyChecking=no -i '%EC2_PEM%' docker-compose.yml ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/"
-                    bash -c "scp -o StrictHostKeyChecking=no -i '%EC2_PEM%' Authentication/Dockerfile ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/"
-                    """
+                    wsl scp -i "$(wslpath '%PEM_PATH%')" -o StrictHostKeyChecking=no Authentication/target/*.jar %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/app.jar
+                    wsl scp -i "$(wslpath '%PEM_PATH%')" -o StrictHostKeyChecking=no docker-compose.yml %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
+                    wsl scp -i "$(wslpath '%PEM_PATH%')" -o StrictHostKeyChecking=no Authentication/Dockerfile %REMOTE_USER%@%REMOTE_HOST%:%REMOTE_DIR%/
+                    '''
                 }
             }
         }
@@ -53,10 +57,12 @@ pipeline {
             steps {
                 echo "🐳 Running docker-compose on EC2..."
                 withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'EC2_PEM')]) {
-                    bat """
+                    bat '''
+                    set PEM_PATH=C:\\Users\\%USERNAME%\\jenkins_key.pem
+
                     echo 🚀 Running docker-compose remotely...
-                    bash -c "ssh -o StrictHostKeyChecking=no -i '%EC2_PEM%' ${REMOTE_USER}@${REMOTE_HOST} \\"cd ${REMOTE_DIR} && docker-compose down && docker-compose up --build -d\\""
-                    """
+                    wsl ssh -i "$(wslpath '%PEM_PATH%')" -o StrictHostKeyChecking=no %REMOTE_USER%@%REMOTE_HOST% "cd %REMOTE_DIR% && docker-compose down && docker-compose up --build -d"
+                    '''
                 }
             }
         }
